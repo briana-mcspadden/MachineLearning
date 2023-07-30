@@ -1,0 +1,260 @@
+---
+title: "COMP 4299 Assignment 5"
+author: "Briana McSpadden"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include = FALSE}
+
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+#for ggplot 
+
+if(!require(dplyr)) install.packages("dplyr", repos = "http://cran.us.r-project.org")
+#for ggplot 
+
+if(!require(dslabs)) install.packages("dslabs", repos = "http://cran.us.r-project.org") 
+
+if(!require(ggplot2)) install.packages("ggplot2", repos = "http://cran.us.r-project.org") 
+
+if(!require(cowplot)) install.packages("cowplot", repos = "http://cran.us.r-project.org") 
+#this is for the plot_grid function to show the scatterplots in part one
+
+if(!require(sjstats)) install.packages("sjstats", repos = "http://cran.us.r-project.org") 
+#this is for rmse values
+
+if(!require(rpart)) install.packages("sjstats", repos = "http://cran.us.r-project.org")
+#this is for rpart
+
+# Getting and reading data:
+
+# Get the Concrete Data from GitHub
+url <- 'https://raw.githubusercontent.com/jholland5/COMP4299/main/spamData.csv'
+
+# Read the data into R and name it concrete.
+spam <- read_csv(url)
+#taking out the row count column
+spam <- spam[,2:59]
+spam$spamORnot <- as_factor(spam$spamORnot)
+```
+## Section 1: Introduction of Data 
+The data in this report looks into different words, characters, and capital letter run lengths present in different emails. The goal is to predict whether or not the email is considered "spam." As we all know, spam emails can be annoying and cause clutter in email accounts that may cause individuals to miss important information. Being able to use predictor words to classify spam emails can help to de-clutter email accounts. In this data set, there are 57 predictors, 1 outcome variable, and 4,600 observations.
+
+<br>
+
+##### The Data
+As mentioned above, the predictor variables in this data set can be classified in three areas- word frequency, character frequency, and capital letter run length.
+
+* **Word Frequency**: The word frequency predictor variables are numeric, continuous variables. There are forty-eight total word frequency predictors in the data set. They are calculated by multiplying one hundred times the number of times that word appears in the email, divided by the total number of words in the email. An example of a word frequency predictor in the data set is "freq_make". In the context of the equation, this predictor measure the number of times that the word "make" appears in the data, multiplies it by one hundred, and then divides by the total number of words in the email. 
+
+* **Character Frequency**: The character frequency predictor variables are numeric, continuous variables. There are six total character frequency predictors in the data set. They are calculated by multiplying one hundred times the total number of times that character appears in the data set, divided by the total number of characters in the email. An example of a character frequency predictor in the data set is "exclam". This is for exclamation marks. 
+
+* **Capital Run Length**: The capital-run-length predictor variables are numeric, continuious variables. They look into the average, longest, and total amount of uninterrupted sequences of capital letters. There are three of these predictor variables- average, longest, and total. 
+
+* **SpamORnot**: This is the outcome variable. It is a factor with levels 0 and 1. A value of 1 indicates that the email is spam and a 0 indicates not spam. 
+
+<br>
+
+##### First 6 Rows of the Data for Each Type of Predictor
+```{r, echo = FALSE}
+#creating a variable with the first 6 rows of the data and first 10 predictor variables. 
+spam_table1 <- spam[1:6, c(1, 50, 55, 58)]
+
+#printing a table of that variable.
+knitr::kable(spam_table1)
+```
+
+<br>
+
+---
+
+## Section 2: Preparing the Data and Visualizing to Choose Predictors
+
+In this section, we will split the data into a training set and a testing set. We will model on the training set and run those models on the testing set to see how well it does. Because all of the predictors are percentages, we don't need to scale any of them. After looking into the data, we will only look at histograms of the top predictors and decide which two will be used in the next section.
+
+<br>
+
+##### Splitting the data
+We are doing a 80/20 split, with 80% of the data going to the training set and 20% of the data going to the testing set. 
+
+<br>
+
+```{r, echo = FALSE}
+#setting the seed
+set.seed(2022)
+
+#splitting into training and testing sets. We will do an 80/20 split with 80% of the data going to the training set and 20% going to the testing set. 
+index <- sample(1:4600,3680,replace = FALSE)
+train_data <- spam[index,]
+test_data <- spam[-index,]
+```
+
+<br>
+
+#### Histograms of the Best Predictors
+```{r, echo = FALSE}
+#word frequency predictor histograms for first half
+train_data[,c(3,7,19,21,53,57, 58)] %>%
+  gather(-spamORnot, key = "var", value = "value") %>%
+  ggplot(aes(x=value, color = spamORnot, fill = spamORnot)) +
+  geom_histogram(position = "identity", bins = 15, alpha = 0.5) +
+  facet_wrap(~var, scales = "free") +
+  theme(axis.title.x=element_blank(), axis.title.y = element_blank())
+
+```
+<br>
+
+Running a summary of a rpart() function on all of the predictors will assign values of variable importance variables. By running a summary and looking at the histograms, the two predictors that will be used in the two predictor model are **dollar** and **freq_remove.** It's important to note that the scales for each histogram vary. 
+
+<br>
+
+##### Boxplots of the 2 chosen predictors: 
+A further look into the two predictors is shown below with box plots. A logarithmic scale for the dollar predictor box plot was added.
+
+<br>
+
+```{r, echo = FALSE, warning=FALSE}
+#dollar predictor boxplot
+ggplot(train_data, aes(x=log(dollar), fill = spamORnot, color = spamORnot)) + geom_boxplot(alpha = .5) + labs(title = "Boxplot Dollar Predictor with Log Scale", x = "Dollar")
+
+#freq_remove predictor boxplot
+ggplot(train_data, aes(x=freq_remove, fill = spamORnot, color = spamORnot)) + geom_boxplot(alpha = .5) + labs(title = "Boxplot of Freqquency of Remove Predictor", x = "freq_remove") + scale_x_continuous(limits = c(-.5,3))
+```
+
+<br>
+
+---
+
+## Section 3: Two Predictor Model 
+For this section, the two predictors **dollar** and **freq_remove** will be used to create a model. The metrics of the model after being tested with the testing data are shown below:
+```{r, echo = FALSE}
+#I used r part to find the values to use in my decision tree. I am commenting them out. 
+# two_predictor <- rpart(spamORnot ~ dollar + freq_remove, data = train_data, method = "class")
+# plot(two_predictor, margin = 1)
+# text(two_predictor, cex = .75, use.n = TRUE)
+# 
+# two_predictions <- predict(two_predictor,test_data,type = "class")
+
+#decision tree with if-else statements
+test_data$TwoVarPrediction <- test_data$TwoVarPrediction <- ifelse(test_data$dollar > 0.0555, 1,
+                           ifelse(test_data$freq_remove > 0.055, 1, 0))
+
+T <- table(Predicted = test_data$TwoVarPrediction, Actual=test_data$spamORnot)
+
+# Copy metrics
+############################ Metrics for Binary Classification #
+T <- as.vector(T)                                              #
+# Accuracy  is (num. correctly predicted)/(total)              #
+accuracy <- (T[1]+T[4])/(T[1]+T[2]+T[3]+T[4]) # correct/total  #
+# Sensitivity is Pr(predict 1 given actually 1) =              #
+sensitivity <- T[4]/(T[3]+T[4])                                #
+# Specificity is Pr(predict 0 given actually 0) =              #            
+specificity <- T[1]/(T[1]+T[2])                                #
+metric <- c("Accuracy","Sensitivity","Specificity")            #
+value <- c(accuracy,sensitivity,specificity)                   #
+data.frame(Metric = metric,Value = round(value,3)) 
+```
+* **Accuracy:** The model is 85% accurate, meaning it predicted true positive results 85% of the time.
+* **Sensitivity:** The model's sensitivity is 70.3%, meaning 70.3% the time the model will predict spam given that the actual value is spam.
+* **Specificity:** The model's specificity is 94.5%, the best of the three metrics. This means that 94.5% of the time the model will predict not spam given that the actual value is not spam.
+
+#### Visualizing the Data
+```{r, echo = FALSE}
+#plotting the data
+Plot <- test_data %>% ggplot()
+Plot + geom_point(aes(dollar, freq_remove,col=spamORnot),size = 2) + labs(title = "Scatterplot of Dollar Predictor Vs Frequency of 'Remove' Predictor", x = "Dollar", y = "Frequency of Remove")
+```
+
+<br>
+
+---
+
+## Section 4: Classification Tree Using RPART
+In this section, we will us the rpart() function to develop the best decision tree possible.  A visual of the tree is provided. To create this tree, the rpart function was used on the training data with a minimum number of 21 buckets and a complexity parameter of .003. The resulting metrics are shown in the table. 
+
+<br>
+
+```{r, echo = FALSE}
+#creating an rpart decision tree and manipulating it to get the best metrics. 
+rfit <- rpart(spamORnot ~ ., data = train_data, method = "class", minbucket = 21, cp = .0003)
+
+#plotting the decision tree to provide a visualization in the report. 
+plot(rfit) 
+#text(rfit, cex = .75, use.n = TRUE)
+
+#predicting on the testing data
+rpredict <- predict(rfit,test_data,type = "class")
+
+
+T <- table(rpredict,test_data$spamORnot)
+#I used this to see which variables to use in part three
+#summary(rfit)
+
+# Copy metrics
+############################ Metrics for Binary Classification #
+T <- as.vector(T)                                              #
+# Accuracy  is (num. correctly predicted)/(total)              #
+accuracy <- (T[1]+T[4])/(T[1]+T[2]+T[3]+T[4]) # correct/total  #
+# Sensitivity is Pr(predict 1 given actually 1) =              #
+sensitivity <- T[4]/(T[3]+T[4])                                #
+# Specificity is Pr(predict 0 given actually 0) =              #            
+specificity <- T[1]/(T[1]+T[2])                                #
+metric <- c("Accuracy","Sensitivity","Specificity")            #
+value <- c(accuracy,sensitivity,specificity)                   #
+data.frame(Metric = metric,Value = round(value,3)) 
+
+```
+
+* **Accuracy:** The model is 91.8% accurate, meaning it predicted true positive results 91.8% of the time. This is much better than the two predictor model from part three. 
+* **Sensitivity:** The model's sensitivity is 88.9%, meaning 88.9% the time the model will predict spam given that the actual value is spam. 
+* **Specificity:** The model's specificity is 93.8%, the best of the three metrics. This means that 93.8% of the time the model will predict not spam given that the actual value is not spam.
+
+<br>
+
+---
+
+## Section 5: Conclusion
+To ensure that the model's metrics are reproducible, we will try changing the seed. 
+```{r, echo = FALSE}
+#setting the seed
+set.seed(2000)
+
+#splitting into training and testing sets. We will do an 80/20 split with 80% of the data going to the training set and 20% going to the testing set. 
+index <- sample(1:4600,3680,replace = FALSE)
+train_data <- spam[index,]
+test_data <- spam[-index,]
+
+#creating an rpart decision tree and manipulating it to get the best metrics. 
+rfit <- rpart(spamORnot ~ ., data = train_data, method = "class", minbucket = 21, cp = .0003)
+
+#predicting on the testing data
+rpredict <- predict(rfit,test_data,type = "class")
+
+
+T <- table(rpredict,test_data$spamORnot)
+#I used this to see which variables to use in part three
+#summary(rfit)
+
+# Copy metrics
+############################ Metrics for Binary Classification #
+T <- as.vector(T)                                              #
+# Accuracy  is (num. correctly predicted)/(total)              #
+accuracy <- (T[1]+T[4])/(T[1]+T[2]+T[3]+T[4]) # correct/total  #
+# Sensitivity is Pr(predict 1 given actually 1) =              #
+sensitivity <- T[4]/(T[3]+T[4])                                #
+# Specificity is Pr(predict 0 given actually 0) =              #            
+specificity <- T[1]/(T[1]+T[2])                                #
+metric <- c("Accuracy","Sensitivity","Specificity")            #
+value <- c(accuracy,sensitivity,specificity)                   #
+data.frame(Metric = metric,Value = round(value,3)) 
+
+```
+Changing the seed results in similar metrics, so we can conclude that the decision tree is reliable. The metrics are slightly lower, but small variations in the metrics is to be expected. Changing the seed helps to see if there are any large drops in accuracy, specificity, or sensitivity. In this case, there are not. Being able to reproduce the results is important to ensure that the model's accuracy is not specific to the seed it was first set on. It was interesting, while creating the model, to see how the model's metrics changed based on a slight change in the complexity parameter or in the minimum bucket parameter. 
+
+<br>
+
+<br>

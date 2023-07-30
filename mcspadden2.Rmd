@@ -1,0 +1,319 @@
+---
+title: "COMP 4299 Assignment 3"
+output: html_document
+date: "2023/02/11 - Briana McSpadden"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include = FALSE}
+
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+#forggplot 
+
+if(!require(dslabs)) install.packages("dslabs", repos = "http://cran.us.r-project.org") 
+
+if(!require(ggplot2)) install.packages("ggplot2", repos = "http://cran.us.r-project.org") 
+
+if(!require(cowplot)) install.packages("cowplot", repos = "http://cran.us.r-project.org") 
+#this is for the plot_grid function to show the scatterplots in part one
+
+if(!require(sjstats)) install.packages("sjstats", repos = "http://cran.us.r-project.org") 
+#this is for rmse values
+
+# Getting and reading data:
+
+# Get the Concrete Data from GitHub
+url <- 'https://raw.githubusercontent.com/jholland5/COMP4299/main/Concrete_Data.csv'
+
+# Read the data into R and name it concrete.
+concrete <- read_csv(url)
+
+```
+
+## Part 1 - Concrete Data Analysis 
+
+The data we will be looking at in this report looks at 1,030 rows of 9 numeric variables relating to concrete. The variables are listed below and consist of different elements that go into a m^3 mixture of concrete along with age that serve as predictors for the the last variable, strength. The name in the parenthesis is the variable name that is in the data itself. 
+
+##### Variable Names and Descriptions:
+
+* **Cement** (cem): Numeric variable that measures the kg of cement in a k^3 mixture of concrete. 
+
+* **Slag** (slag): Numeric variable that measures the kg of slag in a k^3 mixture of concrete. 
+
+* **Fly Ash** (FA): Numeric variable that measures the kg of fly ash in a k^3 mixture of concrete. Fly Ash is a light material added to mixtures of concrete to improve the  work-ability of the mixture.(<https://www.thespruce.com/fly-ash-applications-844761>)
+
+* **Water** (h2o): Numeric variable that measures the kg of water in a k^3 mixture of concrete. 
+
+* **Superplasticizer** (plast): Numeric variable that measures the kg of superplasticizers in a k^3 mixture of concrete.  They are added to concrete mixtures to make it more pourable without having to add more water. (<https://www.concreteconstruction.net/how-to/materials/how-super-are-superplasticizers_o>)
+
+* **Coarse Aggregate** (cAgg): Numeric variable that measures the kg of course aggregate in a k^3 mixture of concrete. This would be like the rock, stone, or gravel used to make concrete. 
+
+* **Fine Aggregate** (fAgg): Numeric variable that measures the kg of fly ash in a k^3 mixture of concrete. This would be the sand and finer natural materials used to make concrete. 
+
+* **Age** (age): Numeric variable representing the age of the concrete.
+
+* **Strength** (strength): Numeric variable measuring the overall strength of the concrete. 
+
+<br>
+
+##### Here is a look at the first 6 rows of the data:
+```{r, echo = FALSE}
+#making the data into a data frame 
+concrete_df <- as.data.frame(concrete)
+
+#creating a variable with the first 6 rows of the data
+table_data <- concrete_df[1:6, 1:9]
+
+#printing a table of that variable.
+knitr::kable(table_data)
+
+```
+
+<br>
+
+##### Summary Statistics of the data:
+
+```{r, echo = FALSE}
+#grouping out the first three variables 
+ConcreteSummary1 <- summary(concrete_df[,1:3])
+#running a summary on them and printing it in a table
+knitr::kable(ConcreteSummary1)
+
+#grouping out the second three variables 
+ConcreteSummary2 <- summary(concrete_df[,4:6])
+#running a summary on them and printing it in a table
+knitr::kable(ConcreteSummary2)
+
+#grouping out the first three variables 
+ConcreteSummary3 <- summary(concrete_df[,7:9])
+#running a summary on them and printing it in a table
+knitr::kable(ConcreteSummary3)
+
+```
+
+<br>
+
+##### Vizualization of the data with Scatterplots:
+
+```{r, echo = FALSE}
+
+#Cement Scatterplot
+cem_plot <- concrete %>% ggplot()
+cem_plot <- cem_plot + geom_point(aes(strength, cem)) + labs(title = "Strength vs Cement", x = "Strength", y = "Cement (kg)")
+
+#Slag Scatterplot
+slag_plot <- concrete %>% ggplot()
+slag_plot <- slag_plot + geom_point(aes(strength, slag)) + labs(title = "Strength vs Slag", x = "Strength", y = "Slag (kg)")
+
+#Fly Ash Scatterplot 
+FA_plot <- concrete %>% ggplot()
+FA_plot <- FA_plot + geom_point(aes(strength, FA)) + labs(title = "Strength vs Fly Ash", x = "Strength", y = "Fly Ash (kg)")
+
+#Water Scatterplot
+h2o_plot <- concrete %>% ggplot()
+h2o_plot <- h2o_plot + geom_point(aes(strength, h2o)) + labs(title = "Strength vs Water", x = "Strength", y = "Water (kg)")
+
+#Superplasticizer Scatterplot 
+plast_plot <- concrete %>% ggplot()
+plast_plot <- h2o_plot + geom_point(aes(strength, plast)) + labs(title = "Strength vs Superplasticizer", x = "Strength", y = "Superplasticizer (kg)")
+
+#Course Aggregate Scatterplot
+cAgg_plot <- concrete %>% ggplot()
+cAgg_plot <- h2o_plot + geom_point(aes(strength, cAgg)) + labs(title = "Strength vs Course Aggregate", x = "Strength", y = "Course Aggregate (kg)")
+
+#Fine Aggregate Scatterplot
+fAgg_plot <- concrete %>% ggplot()
+fAgg_plot <- h2o_plot + geom_point(aes(strength, fAgg)) + labs(title = "Strength vs Fine Aggregate", x = "Strength", y = "Fine Aggregate (kg)")
+
+#Age Scatterplot
+age_plot <- concrete %>% ggplot()
+age_plot <- h2o_plot + geom_point(aes(strength, age)) + labs(title = "Strength vs Age", x = "Strength", y = "Age")
+
+#Grid of the first four scatter plots
+plot_grid(cem_plot, slag_plot, FA_plot, h2o_plot, ncol=2)
+
+#Grid of the last four scatter plots 
+plot_grid(plast_plot, cAgg_plot, fAgg_plot, age_plot, ncol=2)
+
+```
+
+---
+
+## Part 2 - Simple Linear Regression Model
+
+This section will first look at the correlations in the data. After analyzing the correlations, the greatest value will be chosen and used to make a Simple Linear Regression Model. 
+
+<br>
+
+##### Correlation Values:
+```{r, echo = FALSE}
+#Creating a linear model 
+knitr::kable(round(cor(concrete), 5))
+
+
+```
+
+<br>
+
+For the purpose of this report, we are looking to see which correlation value is the greatest in regard to strength. The best predictor based on correlation is **cement** with a value of **0.49783.** So, using cement as the predictor, we will compute a simple linear regression summary. 
+
+<br>
+
+##### Simple Linear Regression Summary Results:
+```{r, echo = FALSE}
+#summary stats of lm with strength and cement
+simplelr <- lm(strength ~ cem, data = concrete)
+summary(simplelr)
+```
+##### RMSE - Root Mean Square Error:
+```{r, echo = FALSE}
+rmse(simplelr)
+```
+
+<br> 
+
+##### Interpretation:
+
+* **Min and Max of Residuals**: In the scatterplot shown below, you can see that the line fits the data well, but not perfect. The minimum and maximum values of residuals are the distances of the farthest points above and below the line of best fit. As you can see from the summary statistics, the value is **-40.593** for the farthest point below the line and **43.24** for the farthest above. 
+
+* **Estimate**: The values under the estimates column in the Coefficients section give the values of the equation for the line of best fit. The equation is **strength = 13.442528 + 0.079580(cem).** The y-intercept of the line will be at 13. 44 and the slope of the line will be 0.0796. 
+
+* **t-value**: The t-value for the cement predictor is **18.4.** This is calculated by taking the Estimate Value and dividing it by the Standard Error value: 0.079580/0.004324 = 18.40. It's a measure of the number of standard deviations the coefficient estimate is from 0. The greater, the better. 18.4 is a good t-value. 
+
+* **p-value**: The p-value is essentially 0 for the cement predictor. P value represents the probability of getting the ratio assuming that there is no relationship between cement and strength of the concrete. Because this value, **<2e-16** is essentially 0, we know that the relationship. The three stars next to the p-value indicate that it is significant. 
+
+* **Residual Standard Error**: This is a measure of variation in the residuals. Ideally, the lower the RSE, the better. For this report, we will look closer at the RMSE rather than Residual Standard Error because it uses the same units as the response variable. 
+
+* **Multiple R-Squared**: Multiple R-Squared can be helpful in determining how well the model describes the data. 1 would mean that it models the data perfect while 0 would mean the opposite. For these results, the value of Multiple R-Squared is **0.2478.** This means that about a quarter of the variation in strength is explained by cement. 
+
+* **RMSE**: RMSE stands for "Root Mean Squared Error". Ideally here, the lower the value the better. This value indicates how far the data points are from the regression line. If the value is higher that would mean that there is a large deviation between the actual value and the residual. We want a lower value to know that the model fits the dataset. 
+
+<br>
+
+```{r, echo = FALSE}
+#scatter plot with the line of best fit from the lm
+ggplot(concrete, aes(x = strength, y = cem)) + 
+  geom_point() +
+  stat_smooth(method = "lm") + 
+  labs(title = "Strength as a function of Cement Value", x = "Strength", y = "Cement (kg)")
+```
+
+---
+
+## Part 3 - Multiple Linear Regression Model Through Backward Elimination
+
+This section will divide the data in half and use one half as the training set and one as the testing set. Backwards elimination will be used to produce the best Multiple Linear Regression Model as possible. 
+
+<br>
+
+##### Using Training Data - Model 1:
+```{r, echo = FALSE}
+#setting the seed so the results are reproducible 
+set.seed(1965)
+
+#Splitting the data into training and testing
+index <- sample(1:1030,515,replace = FALSE)
+train_data <- concrete_df[index,]
+test_data <- concrete_df[-index,]
+
+#running model one. Uses all of the variables. 
+model1 <- lm(strength ~., data = train_data)
+summary(model1)
+```
+##### RMSE - Root Mean Square Error for Model 1:
+```{r, echo = FALSE}
+#caluclating the RMSE
+rmse(model1)
+```
+To make the model better, will remove the value with the highest p-value. The value being removed is Course Aggregate (cAgg).
+
+<br>
+
+##### Using Training Data - Model 2:
+```{r, echo = FALSE}
+#setting the seed so the results are reproducible 
+
+model2 <- lm(strength ~ cem + slag + FA + h2o + plast + fAgg + age, data = train_data)
+summary(model2)
+```
+##### RMSE - Root Mean Square Error for Model 2:
+```{r, echo = FALSE}
+#caluculating the RMSE
+rmse(model2)
+```
+RMSE did not change significantly. We'll take out the next highest, fAgg. 
+
+<br>
+
+##### Using Training Data - Model 3:
+```{r, echo = FALSE}
+#setting the seed so the results are reproducible 
+
+model3 <- lm(strength ~ cem + slag + FA + h2o + plast + age, data = train_data)
+summary(model3)
+
+```
+##### RMSE - Root Mean Square Error Model 3:
+```{r, echo = FALSE}
+#caluculating the RMSE
+rmse(model3)
+```
+Take out the last variable with a P-value greater than .05, which is plast. 
+
+<br>
+
+##### Using Training Data - Model 4:
+```{r, echo = FALSE}
+#setting the seed so the results are reproducable 
+
+model4 <- lm(strength ~ cem + slag + FA + h2o + age, data = train_data)
+summary(model4)
+```
+##### RMSE - Root Mean Square Error Model 4:
+```{r, echo = FALSE}
+#caluculating the RMSE
+rmse(model4)
+```
+All of the P-values are significant. 
+**Model 4 is the chosen model.**
+
+
+##### The equation of the model:
+**strength = 36.463727 + 0.108062(cem) + 0.093776(slag) + 0.080383(FA) - 0.259348(h2o) + 0.108796(age)**
+
+---
+
+## Part 4 - One Sample t-test
+This part will evaluate the model found in part three by preforming a two sample t-test on the test data using the chosen model, 4, from part three.
+
+<br> 
+
+```{r, echo = FALSE}
+#assigning a variable of predicted values
+predicted_values <- predict(model4,test_data)
+
+#running the t-test on the data 
+t.test(test_data$strength - predicted_values)
+```
+**Null Hypothesis:** The true mean is equal to 0.\
+**Alternative Hypothesis:** The true mean is not equal to 0.
+
+<br>
+
+##### Interpretation: 
+When evaluating the model by running a two sample t-test, there are two values that help to indicate whether or not the model is good: A good p-value and a confidence interval that is tight and around 0. Here, since the p value is .424, not significant, we know that there is a 42.4% chance of getting data like this randomly and its average being 0. We accept the null and reject the alternative hypothesis. This is a sufficient p value for the validation. Along with that, we see that the confidence interval is small, covering a range of less than 2.0 and 0 is within the interval. From this, we can believe that the model is going to make adequate predictions for other data sets.
+
+---
+
+## Part 5 - Changing the Seed
+
+After trying 4 different seeds on this data, we conclude that the results are reliable. In all instances, the RMSE of the model was around the same plus or minus .5 and all of the p values for the variables left in model four were significant. When running the t-test on the test-data, the P value and confidence interval indicated that the model would make adequate predictions. The consistency in changing the seed led to the conclusion that the results are good. 
+
+<br>
+<br>
+
+
+

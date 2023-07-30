@@ -1,0 +1,515 @@
+---
+title: "COMP 4299 Assignment 4"
+author: "Briana McSpadden"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include = FALSE}
+
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+#for ggplot 
+
+if(!require(dplyr)) install.packages("dplyr", repos = "http://cran.us.r-project.org")
+#for ggplot 
+
+if(!require(dslabs)) install.packages("dslabs", repos = "http://cran.us.r-project.org") 
+
+if(!require(ggplot2)) install.packages("ggplot2", repos = "http://cran.us.r-project.org") 
+
+if(!require(cowplot)) install.packages("cowplot", repos = "http://cran.us.r-project.org") 
+#this is for the plot_grid function to show the scatterplots in part one
+
+if(!require(sjstats)) install.packages("sjstats", repos = "http://cran.us.r-project.org") 
+#this is for rmse values
+
+# Getting and reading data:
+
+# Get the Concrete Data from GitHub
+url <- 'https://raw.githubusercontent.com/jholland5/COMP4299/main/heartData.csv'
+
+# Read the data into R and name it concrete.
+heart <- read_csv(url)
+heart
+```
+## Part 1 - Heart Data Analysis 
+
+The data we will be looking at in this report looks at 302 rows of 10 variables relating to heart disease. Nine of the variables are predictors to one outcome variable. This report will take a look at the ability of first nine to predict whether or not there is narrowing in the the valve in the large blood vessel that branches off from the heart. Indication of narrowing can mean that heart disease is present or may be present in the future. The outcome variable is a binary variable meaning we will be looking to predict whether or not there is narrowing (0 or 1). To start, here is a list of the predictors with the variable name of each predictor in parenthesis.  
+
+<br>
+
+##### Variable Names and Descriptions:
+
+* **Age** (age): Numeric variable representing the age of the individual. 
+
+* **Sex** (sex): Binary variable (0 or 1) representing the sex of the individual. 0 is representative of females and 1 is representative of males.
+
+* **System Pressure** (sys_press): Numeric Variable measuring Resting Blood Pressure in millimeters of mercury.
+
+* **Cholesterol** (chol): Numeric variable representing the serum cholesterol in $mg/dl$
+
+* **Fasting Blood Sugar** (fast_bsug): Binary variable. This measures the fasting blood sugar and if it is above 120 $mg/dl$ that variable is assigned a 1. If it is below 120 $mg/dl$ then it's assigned a 0.
+
+* **Rest ECG** (recg): Factor variable that measures the resting electrocardiographic results. A 0 is representative of "normal." A 1 is representative of having ST-T wave abnormality, and a 2 is representative of showing probable or definitive left ventricular hypertrophy. (Based off of Estes' criteria)
+
+* **Maximum Heart Rate** (max_hrate): Numeric variable that measures the maximum heart rate achieved in beats per minute. 
+
+* **Old Peak** (opk): Numeric variable that measures ST depression induced by exercise relative to rest.
+
+* **Number of Vessels** (nvess): Number of major Vessels (0-3) colored by fluoroscope. This is a way to gauge if there are blockages.
+
+* **Response** (response): Binary variable (0 or 1) indicating whether or not there was narrowing in the blood vessels.
+
+<br>
+
+<br>
+
+##### First 6 Rows of the Data
+```{r, echo = FALSE}
+#assigning the data from github to a data frame
+heart_df <- as_tibble(heart)
+
+#changing the response variable's name from "level" to reponse. This is just for ease later on and to avoid confusion with some of the syntax of functions. 
+heart_df <- rename(heart_df, response = "level")
+
+#creating a variable with the first 6 rows of the data
+table_data <- heart_df[1:6, 1:10]
+
+#printing a table of that variable.
+knitr::kable(table_data)
+
+```
+
+<br>
+
+##### Summary Statistics
+```{r, echo = FALSE}
+#grouping out the first 5 variables 
+HeartSummary1 <- summary(heart_df[,1:5])
+#running a summary on them and printing it in a table
+knitr::kable(HeartSummary1)
+
+#grouping out the second 5 variables 
+HeartSummary2 <- summary(heart_df[,6:10])
+#running a summary on them and printing it in a table
+knitr::kable(HeartSummary2)
+
+```
+
+<br>
+
+##### **Evaluation of the data** 
+It can be helpful to look into summary statistics of the data to see if there is anything odd or to get an idea of whether we will need to scale any variables. From this, we can see that some of the variables will need to be scaled for better modeling and interpretation later. We will need to scale the variables Age, System Pressure, Cholesterol, and Maximum Heart Rate. Also from this summary, we can see that the response variable values are unbalanced, meaning there are not equal amounts of records for narrowing and not narrowing. This is not surprising but still noteworthy in this analysis. 
+
+<br>
+
+---
+
+<br>
+
+## Part 2 - Splitting and Scaling the Data
+In this section will divide the data in half and use one half as the training set and one as the testing set. We will scale the variables to remove bias and use histograms to see trends in the data after it has been scaled.
+
+<br> 
+
+##### First Six Rows of Training Data After Being Scaled
+```{r, echo = FALSE}
+set.seed(2028)
+
+#splitting into training and testing sets
+index <- sample(1:302,151,replace = FALSE)
+train_data <- heart_df[index,]
+test_data <- heart_df[-index,]
+
+#scaling train and teset set data
+train_data[,c(1,3,4,7)] <- scale(train_data[,c(1,3,4,7)])
+test_data[,c(1,3,4,7)] <- scale(test_data[,c(1,3,4,7)])
+
+#scaling the overall data for the histogram plot
+heart_df[,c(1,3,4,7)] <- scale(heart_df[,c(1,3,4,7)])
+
+section_scaled_train <- train_data[1:6, 1:10]
+knitr::kable(section_scaled_train)
+
+```
+
+<br>
+
+##### Histograms of the Predictor Variables
+ 
+```{r, echo = FALSE}
+
+#faceted plot of histograms
+train_data %>% gather(-response, key = "var", value = "value") %>% ggplot(aes(x=value, color = "cornflowerblue")) + geom_histogram(bins = 25, color = "black", fill = "cornflowerblue") + facet_wrap(~var, scales = "free") + theme(axis.title.x = element_blank(), axis.title.y = element_blank())
+
+```
+
+<br>
+
+##### **Interpretation**
+It is obvious in these histograms which of the variables are binary. Within the binary variables, we can still see whether or not there are more zeros or ones. For example, there are a lot more zeros in the fasting blood sugar histogram than there are ones, indicating that most of the values are below 120 $mg/dl$. Within the non-binary variables, there are trends in the cholesterol histogram, max heart rate histogram, and old peak histogram. This could be something to look into. 
+
+<br>
+
+---
+
+<br>
+
+## Part 3 - Single Predictor Model
+We will use the logistic regression model to predict the response variable. Before we choose which predictor to use, we will look at two predictors at a time in a scatter plot with ellipses to see if the response variable is concentrated in one area. **After displaying all the plots, we will note any significant findings.**
+
+<br>
+
+```{r, echo = FALSE}
+
+#ellipse plot 1 
+splot1 <- train_data %>% ggplot() 
+splot1 + geom_point(aes(age,chol,col = as.factor(response))) +
+  stat_ellipse(aes(age,chol,col=as.factor(response)),
+               type = "norm", linewidth =1.5,level = .7) +
+  scale_color_manual(values = c("forestgreen", "cornflowerblue")) + labs(col = "1 = Narrowing", title = "Age vs Cholesterol", x = "Age", y = "Cholesterol") 
+
+```
+
+<br>
+
+``````{r, echo = FALSE}
+
+#ellipse plot 2
+splot2 <- train_data %>% ggplot() 
+splot2 + geom_point(aes(fast_bsug,max_hrate,col = as.factor(response))) +
+  stat_ellipse(aes(fast_bsug,max_hrate,col=as.factor(response)),
+               type = "norm",linewidth =1.5,level = .7) +
+  scale_color_manual(values = c("forestgreen", "cornflowerblue")) + labs(col = "1 = Narrowing", title = "Fasting Blood Sugar vs Maximum Heart Rate", x = "Fasting Blood Sugar", y = "Maximum Heart Rate") 
+
+```
+
+<br>
+
+```{r, echo = FALSE}
+
+#ellipse plot 3
+splot3 <- train_data %>% ggplot() 
+splot3 + geom_point(aes(nvess,opk,col = as.factor(response))) +
+  stat_ellipse(aes(nvess,opk,col=as.factor(response)),
+               type = "norm",linewidth =1.5,level = .7) +
+  scale_color_manual(values = c("forestgreen", "cornflowerblue")) + labs(col = "1 = Narrowing", title = "Number of Vessels vs Old Peak", x = "Number of Vessels", y = "Old Peak") 
+
+```
+
+<br>
+
+```{r, echo = FALSE}
+
+#ellipse plot 4
+splot4 <- train_data %>% ggplot() 
+splot4 + geom_point(aes(recg,sex,col = as.factor(response))) +
+  stat_ellipse(aes(recg,sex,col=as.factor(response)),
+               type = "norm",linewidth=1.5,level = .7) +
+  scale_color_manual(values = c("forestgreen", "cornflowerblue")) + labs(col = "1 = Narrowing", title = "Resting Electrocardiographic Results vs Sex", x = "Resting Electrocardiographic Results", y = "Sex") 
+
+```
+
+<br>
+
+```{r, echo = FALSE}
+
+#ellipse plot 5
+splot5 <- train_data %>% ggplot()  
+splot5 + geom_point(aes(age,sys_press,col = as.factor(response))) +
+  stat_ellipse(aes(age,sys_press,col=as.factor(response)),
+               type = "norm",linewidth=1.5,level = .7) +
+  scale_color_manual(values = c("forestgreen", "cornflowerblue")) + labs(col = "1 = Narrowing", title = "Age(again) vs System Pressure", x = "Age", y = "System Pressure") 
+
+```
+
+<br>
+
+##### **Interpretation**
+The chart that stands out with noticeable separation between the narrowing response variable and not narrowing variable is **Number of Vessels.** There are more narrowing points valued 2 or 3 and more not narrowing points, (0), valued 0 or 1. For the single predictor model, the predictor of choice is Number of Vessels. 
+
+<br>
+
+##### Next, we will use the logistic regression model to predict the response variable based off the chosen predictor, Number of Vessels, and use that model to predict with the testing set. 
+
+<br>
+
+##### **Results:**
+
+<br>
+
+```{r, echo = FALSE}
+
+#creating the logistic model 
+single_fit <- train_data %>% glm(response ~ nvess, data = ., family = "binomial") 
+
+p_hat_glm <- predict(single_fit, test_data, type = "response")
+
+#because we are working with 1s and 0s 
+y_hat_glm <- factor(ifelse(p_hat_glm > 0.5, 1, 0), levels = c("0", "1"))
+
+#assigning the intercept and slope to variables. This is to make it easier to try other predictor variables later.
+coef_intercept <- single_fit$coefficients[1]
+coef1 <- single_fit$coefficients[2]
+
+#what will go into the model predictions
+t <- test_data$nvess 
+
+y <- 1/(1+exp(coef_intercept)*exp(coef1*t))
+test_data$Outcome <- as.factor(ifelse(test_data$response == 1,"Narrowing","No Narrowing"))
+test_data$y <- y
+
+plotting <- test_data %>% ggplot()
+plotting + geom_jitter(aes(nvess, y, col = Outcome), size = 2, width = .01, height = .02) + geom_abline(slope = 0, intercept = .5, color = "red") + scale_color_manual(values = c("forestgreen", "skyblue")) + labs(title = "Logistic Regression with Number of Vessels Predictor", x = "Number of Vessels", y = "Response")
+
+```
+
+<br>
+
+##### **Interpretation**
+When used on the testing data, the model did pretty well. The chart gives a visualization of whether narrowing or no narrowing was predicted for each level representing the number of vessels. The red line at the 0.5 mark shows the cutoff because we are predicting a binary outcome. To try and measure the predictive capability of the model, accuracy, sensitivity will be used. 
+
+<br>
+
+##### Three Metrics from the Model: 
+```{r, echo = FALSE}
+
+#creating contingency table
+Table_values <- table(test_data$response,y_hat_glm)
+
+T <- as.vector(Table_values)                                              
+# Accuracy  is (num. correctly predicted)/(total)              
+accuracy <- (T[1]+T[4])/(T[1]+T[2]+T[3]+T[4]) # correct/total  
+# Sensitivity is Pr(predict 1 given actually 1) =              
+sensitivity <- T[4]/(T[3]+T[4])                                
+# Specificity is Pr(predict 0 given actually 0) =                          
+specificity <- T[1]/(T[1]+T[2])                                
+metric <- c("Accuracy","Sensitivity","Specificity")            
+value <- c(accuracy,sensitivity,specificity)                   
+knitr::kable(data.frame(Metric = metric,Value = round(value,3)))
+```
+
+<br>
+
+##### **How well did the model do?**
+
+* **Accuracy -** Accuracy measures the proportion of true positive results. Meaning, how often, when the value in the testing set was a 1 or 0, did the model predict it correct. An accuracy value of 0.815 means that the model predicted true positive results **81.5%** of the time. 
+
+* **Sensitivity -** Sensitivity is the probability that the model predicts 1, given that the actual value is 1. In this case, it would mean that the model predicts narrowing given that the actual data in the testing set is narrowing. The model has a sensitivity value of 0.845, so **84.5%** of the time the model will predict narrowing given that the actual value is narrowing. 
+
+* **Specificity -** The last measure, Specificity, is the probability that the model predicts 0, given that the actual value is 0. The model has a Specificity value of 0.796 meaning that **79.6%** of the time the model will predict no narrowing given that the actual value is no narrowing.
+
+<br>
+
+---
+
+<br>
+
+## Part 4 - Multivariable Logistic Model
+In this section, we will use backward elimination to produce the best multivariable logistic model and use the accuracy, sensitivity, and specificity measures to help us produce the best model. 
+
+<br>
+
+##### First, we will start with a model using all predictors. 
+
+<br>
+
+### Model 1
+```{r, echo = FALSE}
+
+glm_fit <- train_data %>% glm(response ~ .,
+                              data =., family = "binomial")
+p_hat_glm <- predict(glm_fit,test_data, type = "response")
+y_hat_glm <- factor(ifelse(p_hat_glm > .5,1,0), levels = c("0","1"))
+
+T <- table(test_data$response, y_hat_glm)
+
+#metrics of the model
+T <- as.vector(T)                                              
+# Accuracy  is (num. correctly predicted)/(total)              
+accuracy <- (T[1]+T[4])/(T[1]+T[2]+T[3]+T[4]) # correct/total  
+# Sensitivity is Pr(predict 1 given actually 1) =              
+sensitivity <- T[4]/(T[3]+T[4])                                
+# Specificity is Pr(predict 0 given actually 0) =                          
+specificity <- T[1]/(T[1]+T[2])                                
+metric <- c("Accuracy","Sensitivity","Specificity")            
+value <- c(accuracy,sensitivity,specificity)                   
+knitr::kable(data.frame(Metric = metric,Value = round(value,3)))
+
+Average <- (accuracy + sensitivity + specificity)/3
+#just used this to see what the average was for the bonus. I am not putting it in my report so I will comment out the average value in all of the models
+#round(Average, 4)
+
+```
+
+<br> 
+
+The metrics for the model are pretty good, but we will eliminate predictors to see if we can get a better model. To decide which predictor to remove, we can see their significance level by running a summary of the model.   
+
+<br> 
+
+##### Summary of Model 1
+```{r, echo= FALSE}
+#summary stats of the model
+summary(glm_fit)
+
+```
+
+<br> 
+
+We will remove the **age** predictor because it has the highest p value.
+
+<br> 
+
+### Model 2
+```{r, echo = FALSE}
+
+glm_fit2 <- train_data %>% glm(response ~ sex + sys_press + chol + fast_bsug + recg + max_hrate + opk + nvess,
+                              data =., family = "binomial")
+p_hat_glm <- predict(glm_fit2, test_data, type = "response")
+y_hat_glm <- factor(ifelse(p_hat_glm > .5,1,0), levels = c("0","1"))
+
+T <- table(test_data$response, y_hat_glm)
+
+#metrics of the model
+T <- as.vector(T)                                              
+# Accuracy  is (num. correctly predicted)/(total)              
+accuracy <- (T[1]+T[4])/(T[1]+T[2]+T[3]+T[4]) # correct/total  
+# Sensitivity is Pr(predict 1 given actually 1) =              
+sensitivity <- T[4]/(T[3]+T[4])                                
+# Specificity is Pr(predict 0 given actually 0) =                          
+specificity <- T[1]/(T[1]+T[2])                                
+metric <- c("Accuracy","Sensitivity","Specificity")            
+value <- c(accuracy,sensitivity,specificity)                   
+knitr::kable(data.frame(Metric = metric,Value = round(value,3)))
+
+Average <- (accuracy + sensitivity + specificity)/3
+#round(Average, 4)
+
+```
+
+<br> 
+
+The accuracy of the model stayed the same, sensitivity decreased slightly, but specificity increased. Again, we will remove predictors after looking at the summary of the model.
+
+<br> 
+
+##### Summary of Model 2 
+```{r, echo= FALSE}
+#summary stats of the model
+summary(glm_fit2)
+
+```
+
+<br>
+
+This time we will remove the **system pressure (sys_press)** predictor because it does not have a significant p-value.
+
+<br>
+
+### Model 3
+```{r, echo = FALSE}
+
+glm_fit3 <- train_data %>% glm(response ~ sex + chol + fast_bsug + recg + max_hrate + opk + nvess,
+                              data =., family = "binomial")
+p_hat_glm <- predict(glm_fit3, test_data, type = "response")
+y_hat_glm <- factor(ifelse(p_hat_glm > .5,1,0), levels = c("0","1"))
+
+T <- table(test_data$response, y_hat_glm)
+
+#metrics of the model
+T <- as.vector(T)                                              
+# Accuracy  is (num. correctly predicted)/(total)              
+accuracy <- (T[1]+T[4])/(T[1]+T[2]+T[3]+T[4]) # correct/total  
+# Sensitivity is Pr(predict 1 given actually 1) =              
+sensitivity <- T[4]/(T[3]+T[4])                                
+# Specificity is Pr(predict 0 given actually 0) =                          
+specificity <- T[1]/(T[1]+T[2])                                
+metric <- c("Accuracy","Sensitivity","Specificity")            
+value <- c(accuracy,sensitivity,specificity)                   
+knitr::kable(data.frame(Metric = metric,Value = round(value,3)))
+
+Average <- (accuracy + sensitivity + specificity)/3
+#round(Average, 4)
+
+```
+
+<br> 
+
+All three of the metrics decreased slightly, we will remove another predictor to see if the metrics become higher than they were in model two and if not, model two will be the model we stick with. 
+
+<br> 
+
+##### Summary of Model 3
+```{r, echo= FALSE}
+#summary stats of the model
+summary(glm_fit3)
+
+```
+
+<br>
+
+We will remove the **resting electrocardiographic result (recg)** predictor because its p-value is not significant. 
+
+<br>
+
+### Model 4
+```{r, echo = FALSE}
+
+glm_fit4 <- train_data %>% glm(response ~ sex + chol + fast_bsug + max_hrate + opk + nvess,
+                              data =., family = "binomial")
+p_hat_glm <- predict(glm_fit4, test_data, type = "response")
+y_hat_glm <- factor(ifelse(p_hat_glm > .5,1,0), levels = c("0","1"))
+
+T <- table(test_data$response, y_hat_glm)
+
+#metrics of the model
+T <- as.vector(T)                                              
+# Accuracy  is (num. correctly predicted)/(total)              
+accuracy <- (T[1]+T[4])/(T[1]+T[2]+T[3]+T[4]) # correct/total  
+# Sensitivity is Pr(predict 1 given actually 1) =              
+sensitivity <- T[4]/(T[3]+T[4])                                
+# Specificity is Pr(predict 0 given actually 0) =                          
+specificity <- T[1]/(T[1]+T[2])                                
+metric <- c("Accuracy","Sensitivity","Specificity")            
+value <- c(accuracy,sensitivity,specificity)                   
+knitr::kable(data.frame(Metric = metric,Value = round(value,3)))
+
+Average <- (accuracy + sensitivity + specificity)/3
+#round(Average, 4)
+
+```
+
+<br>
+
+All three metrics have gone up. We will go with this model because the metrics are consistent. All are around 85%. A fifth model was ran but model 4 had the best metrics so the fifth model is not included in this report. 
+
+<br>
+
+##### **Overall Model Results**
+
+* **Accuracy -** An accuracy value of 0.848 means that the model predicted true positive results **84.8%** of the time. 
+
+* **Sensitivity -** The model has a sensitivity value of 0.857, so **85.7%** of the time the model will predict narrowing given that the actual value is narrowing. 
+
+* **Specificity -** The model has a Specificity value of 0.841 meaning that **84.1%** of the time the model will predict no narrowing given that the actual value is no narrowing.
+
+<br>
+
+---
+
+<br>
+
+## Part 5 - Changing the Seed
+
+<br> 
+
+After multiple different seeds, the conclude that the results are reliable. In all instances of changing the seed, all three measures were around the same give or take around 5%. The predictors in the chosen model are sex, cholesterol, fasting blood sugar, maximum heart rate, old peak, and number of vessels. Overall, though not perfect, the model's ability to predict is good. 
+
+<br>
+
+<br>

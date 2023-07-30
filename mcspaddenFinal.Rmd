@@ -1,0 +1,212 @@
+---
+title: "Final"
+author: "Briana McSpadden"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include = FALSE}
+
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+#for ggplot 
+
+if(!require(dplyr)) install.packages("dplyr", repos = "http://cran.us.r-project.org")
+#for ggplot 
+
+if(!require(dslabs)) install.packages("dslabs", repos = "http://cran.us.r-project.org") 
+
+if(!require(ggplot2)) install.packages("ggplot2", repos = "http://cran.us.r-project.org") 
+
+if(!require(cowplot)) install.packages("cowplot", repos = "http://cran.us.r-project.org") 
+#this is for the plot_grid function to show the scatterplots in part one
+
+if(!require(sjstats)) install.packages("sjstats", repos = "http://cran.us.r-project.org") 
+#this is for rmse values
+
+if(!require(rpart)) install.packages("rpart", repos = "http://cran.us.r-project.org")
+#this is for rpart
+
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+
+if(!require(psych)) install.packages("psych", repos = "http://cran.us.r-project.org")
+
+# Getting and reading data:
+
+# Get the Concrete Data from GitHub
+url <- 'https://raw.githubusercontent.com/jholland5/COMP4299/main/mnist_20.csv'
+
+# Read the data into R and name it.
+mnist <- read_csv(url)
+```
+
+```{r, echo = FALSE}
+#I took out the section where I removed the variables with less than 5 variance. 
+#variance of each variable in mnist
+#variances <- apply(mnist, 2, var)
+
+#getting the names of the variables
+#less_than_5 <- names(variances[variances < 5])
+
+#removing the variables with variance less than 5 from data frame
+#mnist <- mnist[, !(names(mnist) %in% less_than_5)]
+
+#adding in a new variable
+response <- if_else(mnist$labels == 0, 0, 1)
+mnist$Y <- as.factor(response)
+
+#taking out the row number column
+mnist <- mnist[,-1]
+#taking out the labels column
+mnist <- mnist %>% select(-labels)
+```
+
+## Section 1: Introduction of Data 
+This data set is titled, "mnist_20" which stands for Modified National Institute of Standards and Technology database. The data set is used to practice machine learning techniques for image processing. There are 786 variables and 12,001 observations. It is made up of hand written digits from 0 to 9. For this project, we are only using 20% of the larger data set "mnist" and only looking to determine the classification of whether the handwritten number is a zero or not a zero. 20% is used due to file size limitations. Mnist is an extremely well recognized data set in the world of machine learning and known for its simplicity in the area of pre-processing. All of the predictor variables are on the same scale so no pre-processing is required for this data set. In the raw data form, the response variable is a number from 0 to 9 but for this project, we will create a new response variable assigning a 0 to all hand written digits that are a 0 and a 1 to all other hand written digits, creating a two-level factor. Essentially, the goal of the project is to predict a handwritten 0 from all other hand written numbers as best as we can. 
+
+##### The Data
+
+* **V1**: The predictors combine to make a 28 by 28 array with each point in the array describing how dark each pixel is. So for example, if there was a hand written mark down the middle, the number one, the associated areas of the array would have values of the darkness level, and all other areas would have a 0, meaning that there was no mark there. 28 times 28 is 764, the total number of predictor variables that we have. All variables are numeric and labeled with a V and a number, like the "V1" in this example. 
+
+* **Y**: For this report, Y is representative of the response variable. Indicating whether or not the image was a 0 or not. As stated above, we assign a 0 to all hand written digits that are a 0 and a 1 to all other hand written digits, creating a two-level factor. 
+
+##### The Metrics
+
+* **F1**: F1 values will be used as our metric in this report so it is important to define what F1 values are. The F1 value is the harmonic average of precision and recall. It is a commonly used one-number summary that is helpful for optimization purposes. The equation for F1 can be defined as $2((precision*recall)/(precision+ recall))$. The highest a F1 value can be is 1. The closer to one, the better.
+
+* **Accuracy:** Accuracy measures the proportion of true positive results. Meaning, how often, when the value in the testing set was a 1 or 0, did the model predict it correct.
+
+* **Sensitivity:** Sensitivity is the probability that the model predicts 1, given that the actual value is 1. 
+
+* **Specificity:** The last measure, Specificity, is the probability that the model predicts 0, given that the actual value is 0. 
+
+<br>
+
+---
+
+## Section 2: Preparing the Data 
+To prepare the data for the models in the later section of this report, we will perform Principal Component Analysis, also referred to as PCA. PCA is a data-reduction technique that has the ability to transform a larger number of correlated variables into a much smaller set of uncorrelated variables that are referred to as principal components. By reducing the amount of variables to principal components that capture the essence of the data, we are able to model quicker and simpler. PCA is performed in this section so that the principal components can be used as the variables in the models. After performing PCA, we will set the seed so results are reproducible and split the data into testing and training components. 80% of the data will go to the training set and 20% to the testing set. 
+
+<br>
+
+```{r, echo = FALSE}
+#Principal component analysis
+#creating a matrix
+x <- as.matrix(mnist[,1:784])
+
+#performing PCA on the matrix
+pca_mnist <- prcomp(x)
+#summary(pca_mnist)$importance[,290:300]
+
+model_data <- as.data.frame(pca_mnist$x[,1:150])
+
+model_data$Y <- mnist$Y
+set.seed(2022)
+#there are 151 variables now because we added the response variables 
+train_index <- createDataPartition(model_data$Y, times = 1, p = 0.8, list = FALSE)
+#using the index to create the training and testing data 
+train_data <- model_data[train_index,]
+test_data <- model_data[-train_index,]
+```
+Results from the split: \
+**training data - ** There are 9601 observations of 151 Principal Components.\
+**testing data - ** There are 2400 observations of 151 Principal Components.
+
+<br>
+
+---
+
+## Section 3: Modeling with Three Variables 
+In this section, we will create a model using only three principal components to determine whether the handwritten number is 0 or not. The first three PCs will be used because they explain the most amount of variance. First, scatter plots of the PCs plotted against each other will be shown to help visualize the chosen variables. 
+
+<br>
+
+#### Plotting the Three Variables: 
+```{r, echo = FALSE}
+#plotting the data
+plot1 <- train_data %>% ggplot()
+plot1 + geom_point(aes(PC1, PC2, col=Y),size = 2) + labs(title = "Scatterplot of PC1 Predictor vs PC2", 
+                                                         x = "PC1", y = "PC2")
+
+#plotting the data
+plot2 <- train_data %>% ggplot()
+plot2 + geom_point(aes(PC1, PC3, col=Y),size = 2) + labs(title = "Scatterplot of PC1 Predictor vs PC3",
+                                                         x = "PC1", y = "PC3")
+
+#plotting the data
+plot3 <- train_data %>% ggplot()
+plot3 + geom_point(aes(PC2, PC3, col=Y),size = 2) + labs(title = "Scatterplot of PC2 Predictor vs PC3",
+                                                         x = "PC2", y = "PC3")
+```
+
+<br>
+
+**Generalized Linear Model**\
+Using the first 3 Principal Components, a generalized linear model will be created and fitted on the training data. After being fitted, it will be used to predict with the testing data. After that whole process, we will look at the confusion matrix to see how well the model did. 
+
+<br>
+
+#### Confusion Matrix: 
+```{r, echo = FALSE}
+#creating a model with three variables 
+glm_model <- train_data %>% glm(Y ~ PC1 + PC2 + PC3, data = ., family = "binomial")
+
+p_hat_glm <- predict(glm_model, test_data, type = "response")
+y_hat_glm <- factor(ifelse(p_hat_glm > .5,1,0), levels = c("0","1"))
+
+#confusion matrix of the data
+confusionMatrix(y_hat_glm, test_data$Y)
+```
+
+#### F1 Value of the Model: 
+```{r, echo = FALSE}
+F_meas(y_hat_glm, test_data$Y)
+
+```
+
+**Evaluation:**\
+Considering this model only uses three Principal Components, the three did well. The accuracy of the model is 0.9438 meaning it predicted correct 94.38% of the time. The sensitivity of the model is 0.55274 meaning that it predicted a 1 given that the actual value was a 1 55.274% of the time which is not great, however, specificity was 0.98659, meaning that it predicted a 0 given that the actual was a 0 98.659% of the time which is really good. Overall F1 value for the model is 0.6599496. The F1 value is good but not great. It is important to note that we only used three principal components here so we do not expect it to be amazing. 
+
+<br>
+
+---
+
+## Section 4: Modeling with All the Variables
+In this section, we will create a model using 150 principal components to try and increase the metrics of the model. Again, we will create a generalized linear model, fit it on the training data and predict using that model on the testing data. The confusion matrix will be shown again to display the metrics of the model. 
+
+<br>
+
+#### Confusion Matrix: 
+```{r, echo = FALSE, warning=FALSE}
+glm_model2 <- train_data %>% glm(Y ~ ., data = ., family = "binomial")
+
+p_hat_glm <- predict(glm_model2, test_data, type = "response")
+y_hat_glm <- factor(ifelse(p_hat_glm > .5,1,0), levels = c("0","1"))
+
+#confusion matrix of the data
+confusionMatrix(y_hat_glm, test_data$Y)
+```
+
+#### F Value of the Model: 
+```{r, echo = FALSE}
+F_meas(y_hat_glm, test_data$Y)
+
+```
+
+**Evaluation:**\
+This model does significantly better which makes sense considering that it uses a lot more principal components. The accuracy of the model is 0.99 meaning it predicted correct 99% of the time. The sensitivity of the model is 0.95359 meaning that it predicted a 1 given that the actual value was a 1 95.359% of the time, way better that the model from section three. Specificity was 0.99399, meaning that it predicted a 0 given that the actual was a 0 99.399% of the time which is also really good. Overall F1 value for the model is 0.9495798. The F1 value is close to one, telling us that this is a good model.
+
+<br>
+
+---
+
+## Section 5: Closing Remarks
+
+After trying multiple different seeds, we can conclude that the results are reliable. In all instances of changing the seed, all three measures of accuracy, sensitivity, and specificity were around the same give or take a little. The same goes for the F1 value. Overall, though not perfect, the model's ability to predict is very good. 
+
+<br>
+
+<br>

@@ -1,0 +1,223 @@
+---
+title: "COMP 4299 Assignment 6"
+author: "Briana McSpadden"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include = FALSE}
+
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+#for ggplot 
+
+if(!require(dplyr)) install.packages("dplyr", repos = "http://cran.us.r-project.org")
+#for ggplot 
+
+if(!require(dslabs)) install.packages("dslabs", repos = "http://cran.us.r-project.org") 
+
+if(!require(ggplot2)) install.packages("ggplot2", repos = "http://cran.us.r-project.org") 
+
+if(!require(cowplot)) install.packages("cowplot", repos = "http://cran.us.r-project.org") 
+#this is for the plot_grid function to show the scatterplots in part one
+
+if(!require(sjstats)) install.packages("sjstats", repos = "http://cran.us.r-project.org") 
+#this is for rmse values
+
+if(!require(rpart)) install.packages("rpart", repos = "http://cran.us.r-project.org")
+#this is for rpart
+
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+
+if(!require(randomForest)) install.packages("randomForest", repos = "http://cran.us.r-project.org")
+
+# Getting and reading data:
+
+# Get the Concrete Data from GitHub
+url <- 'https://raw.githubusercontent.com/jholland5/COMP4299/main/spamData.csv'
+
+# Read the data into R and name it concrete.
+spam <- read_csv(url)
+#taking out the row count column
+spam <- spam[,2:59]
+spam$spamORnot <- as_factor(spam$spamORnot)
+```
+## Section 1: Introduction of Data 
+The data in this report looks into different words, characters, and capital letter run lengths present in different emails. The goal is to predict whether or not the email is considered "spam." As we all know, spam emails can be annoying and cause clutter in email accounts that may cause individuals to miss important information. Being able to use predictor words to classify spam emails can help to de-clutter email accounts. In this data set, there are 57 predictors, 1 outcome variable, and 4,600 observations.
+
+<br>
+
+Creating a decision tree resulted in the following metrics: 
+
+
+* **Accuracy:** 91.8%
+
+* **Sensitivity:** 88.9%
+
+* **Specificity:** 93.8%
+
+<br>
+
+##### The Data
+As mentioned above, the predictor variables in this data set can be classified in three areas- word frequency, character frequency, and capital letter run length.
+
+* **Word Frequency**: The word frequency predictor variables are numeric, continuous variables. There are forty-eight total word frequency predictors in the data set. They are calculated by multiplying one hundred times the number of times that word appears in the email, divided by the total number of words in the email. An example of a word frequency predictor in the data set is "freq_make". In the context of the equation, this predictor measure the number of times that the word "make" appears in the data, multiplies it by one hundred, and then divides by the total number of words in the email. 
+
+* **Character Frequency**: The character frequency predictor variables are numeric, continuous variables. There are six total character frequency predictors in the data set. They are calculated by multiplying one hundred times the total number of times that character appears in the data set, divided by the total number of characters in the email. An example of a character frequency predictor in the data set is "exclam". This is for exclamation marks. 
+
+* **Capital Run Length**: The capital-run-length predictor variables are numeric, continuious variables. They look into the average, longest, and total amount of uninterrupted sequences of capital letters. There are three of these predictor variables- average, longest, and total. 
+
+* **SpamORnot**: This is the outcome variable. It is a factor with levels 0 and 1. A value of 1 indicates that the email is spam and a 0 indicates not spam. 
+
+<br>
+
+##### First 6 Rows of the Data for Each Type of Predictor
+```{r, echo = FALSE}
+#creating a variable with the first 6 rows of the data and first 10 predictor variables. 
+spam_table1 <- spam[1:6, c(1, 50, 55, 58)]
+
+#printing a table of that variable.
+knitr::kable(spam_table1)
+```
+
+<br>
+
+---
+
+## Section 2: Preparing the Data
+
+In this section, we will split the data into a training set and a testing set. The "createDataPartition()" function from the caret package will ensure that equal percentages of spam observations and non-spam observations will be allocated to the testing and training sets. Because there are greater than 1000 observations, an 80/20 split will be preformed on the data, with 80% going to the training set and 20% going to the testing set. There are 3681 observations in the testing set and 919 in the testing set. Once the data has been divided into testing and training sets, we will use the training set to visualize the top predictor variables. 
+
+<br>
+
+```{r, echo = FALSE}
+#setting the seed
+set.seed(2112)
+
+#splitting into training and testing sets. We will do an 80/20 split with 80% of the data going to the training set and 20% going to the testing set. 
+train_index <- createDataPartition(spam$spamORnot, times = 1, p = 0.8, list = FALSE)
+#using the index to create the training and testing data 
+train_data <- spam[train_index,]
+
+test_data <- spam[-train_index,]
+```
+
+### Histograms of the Predictor Variables Used in Later Models
+```{r, fig.width=9, fig.height=9, echo = FALSE}
+#word frequency predictor histograms for some of the predictors
+train_data[,c(3,7,9,20,23,24,25,52,53,56,58)] %>%
+  gather(-spamORnot, key = "var", value = "value") %>%
+  ggplot(aes(x=value, color = spamORnot, fill = spamORnot)) +
+  geom_histogram(position = "identity", bins = 15, alpha = 0.5) +
+  facet_wrap(~var, scales = "free") +
+  theme(axis.title.x=element_blank(), axis.title.y = element_blank()) 
+```
+
+<br>
+
+---
+
+## Section 3: KNN
+
+Here, we will use the training data to find the best KNN model using 10 predictor variables. We are only using 10 variables because KNN can be slow for high dimensional data. "KNN" stands for k nearest neighbors with k being a parameter that can be tuned. The 10 predictors that we will be using are the ones in the histogram above. After using the training data, we will predict using the model on the testing data to find the F1 value. 
+
+<br> 
+
+```{r, echo = FALSE}
+#knn model
+knn_fit6 <- train(spamORnot ~ dollar + freq_remove + freq_money + freq_000 + exclam + cap_longest + freq_credit + freq_order + freq_hp, method = "knn", data = train_data, 
+                  tuneGrid = data.frame(k = seq(1, 21, 2)))
+
+ggplot(knn_fit6, highlight = TRUE) + labs(title = "Plot of the KNN Model", x = "Neighbors", y = "Accuracy (Bootstrap)") + theme_bw()
+```
+
+For this model, all 10 chosen predictors were used and it tested 10 k's, starting at 1 and going by 2s up to 21. From the plot, you can see that **1 neighbor** did the best. Now, we will predict on the testing data using the model and find the F1 value. 
+
+<br>
+
+#### F1 Value for the KNN Model
+```{r, echo = FALSE}
+#metrics for the knn model
+y_hat_knn <- predict(knn_fit6, test_data, type = "raw")
+
+#saving the F1 value to a variable so we can use it later in part 5
+F_measure_knn <- F_meas(y_hat_knn,test_data$spamORnot) 
+F_measure_knn
+```
+
+<br>
+
+**What is F1 Value?** \n
+F1 values will be used as our metric in this report so it is important to define what F1 values are. The F1 value is the harmonic average of precision and recall. It is a commonly used one-number summary that is helpful for optimization purposes. The equation for F1 can be defined as $2((precision*recall)/(precision+ recall))$. The highest a F1 value can be is 1. The closer to one, the better.
+
+<br>
+
+---
+
+## Section 4: Random Forest
+
+In this section, we will make a random forest model. The random forest model will randomly select predictors of the ones in the formula and make decision trees. The number of predictors it randomly selects can be specified in the "tuneGrid" argument. Here, we will use 2 to 3. A benefit to random forest models is that they avoid over fitting the model on the training data. Again we will look at a chart of the data and then the F1 value. 
+
+# Plot of the Random Forest Model
+```{r, echo = FALSE}
+#random forest model using 2-3
+fit_rf2 <- train(spamORnot ~ dollar + freq_remove + freq_money + freq_000 + exclam + cap_longest + freq_credit + freq_order + freq_hp + freq_all, method = "rf", data = train_data,
+                 tuneGrid = data.frame(mtry = seq(2, 3, 1)))
+
+#plotting it 
+ggplot(fit_rf2, highlight = TRUE) + labs(title = "Plot of the Random Forest Model", x = "Randomly Selected Predictors", y = "Accuracy (Bootstrap)") + theme_bw()
+```
+
+<br> 
+
+#### F1 Metric of the Model
+```{r, echo = FALSE}
+#metrics of the random forest model
+y_hat_rf <- predict(fit_rf2, test_data, type = "raw")
+#saving the F1 value to a variable so we can use it later in part 5
+F_measure_rf <- F_meas(y_hat_rf,test_data$spamORnot)
+F_measure_rf
+```
+
+The random forest model does slightly better than the KNN model but not by much. 
+
+<br>
+
+---
+
+## Section 5: Comparing the models
+In this section, we will compare the F1 measure of the models that have been created and change the seed to see if the results are reproducable. 
+
+```{r, echo = FALSE}
+#getting the F1 measure from the rpart I used on last week's assignment
+rfit <- rpart(spamORnot ~ ., data = train_data, method = "class", minbucket = 21, cp = .0003)
+
+#predicting on the testing data
+rpredict <- predict(rfit,test_data,type = "class")
+
+#metrics
+#y_hat_dt <- predict(fit_rf2, test_data, type = "raw")
+#saving the F1 value to a variable so we can use it later in part 5
+F_measure_dt <- F_meas(rpredict,test_data$spamORnot)
+```
+
+
+### F1 Values Table: 
+```{r, echo = FALSE}
+
+F1_table <- data.frame(KNN = F_measure_knn, 
+                       Random_Forest = F_measure_rf, 
+                       Decision_Tree = F_measure_dt)
+
+knitr::kable(F1_table)
+```
+
+The random forest slightly outperforms the decision tree and the KNN models but they are all pretty consistent. Based off these metrics, we can be confident in the ability to predict spam data around 91% of the time using these models. To ensure that the metrics are reproducible, the models were tried on mulitple other seeds and produced similar results. 
+
+<br>
+
+<br>
+
